@@ -64,8 +64,8 @@
                     "passport": {
                         "strategy": "mock",
                         "users": {
-                            "JohnDole@tester.sap.com": {
-                                "ID": "JohnDole@tester.sap.com",
+                            "user@test.com": {
+                                "ID": "user@test.com",
                                 "password": "initial"
                             }
                         }
@@ -86,11 +86,10 @@
                         "requestTimeout": 30000
                     }
                 },
-                "destination_sf": {
-                    "kind": "rest",
+               "sthubsystem-qa": {
+                    "kind": "destination",
                     "credentials": {
-                        "url": "<your-successfactors-base-url>",
-                        "requestTimeout": 30000
+                        "destination": "sthubsystem-qa"
                     }
                 }
             }

@@ -1,48 +1,18 @@
 const cds = require("@sap/cds")
-const { executeHttpRequest } = require('@sap-cloud-sdk/http-client');
 
 AUTHORIZATION_HEADER = cds.env.requires["SUCCESS_FACTORS_CREDENTIALS"]["AUTHORIZATION_HEADER"]
 
 // Returns the user object with same structure as we get from SF API
-async function getUserInfoById(filterQuery){
-    try {
-        
-        const formattedURL= "/sap/opu/odata/sap/ZFI_OTC_CREDITNOTE_SRV;mo/GetInvoiceSearchResult?sap-client=888&"+filterQuery+"&SAP__Origin='AERO288'&$format=json";
-        console.log("STE-GPT-INFO formattedURL"+formattedURL);
-        const response = await executeHttpRequest(
-            {
-                destinationName: 'sthubsystem-qa'
-            }, {
-                method: 'GET',
-                url: formattedURL,
-                data: {}
-            } 
-        );
-        console.log("STE-GPT-INFO count - "+response.data.d.results.length);
-        return response.data.d.results;
-    } catch (e) {
-        console.error("STE-GPT-ERROR getInvoiceSearchResult"+e);
-    }
-}
-
-
-
-// Returns the user object with same structure as we get from SF API
-async function getUserInfoById1(userId){
-    try {
-    const destination_sf = await cds.connect.to('sthubsystem-qa')
+async function getUserInfoById(userId){
+    const destination_sf = await cds.connect.to('destination_sf')
     let result = await destination_sf.send({ 
-        query: `GET /sap/opu/odata/sap/ZFI_OTC_CREDITNOTE_SRV;mo/GetInvoiceSearchResult?sap-client=888&InvoiceNo=''&InvoiceType='FI'&FiscalYear='2024'&DateFrom=''&DateTo=''&SalesOrder=''&CompanyCode='801'&SAP__Origin='AERO288'?$format=json`, 
+        query: `GET /odata/v2/User('${userId}')?$format=json`, 
         headers: { Authorization: AUTHORIZATION_HEADER } 
     })
-   }catch (e) {
-    console.log("call failed error PRASAD-100 getUserInfoById1"+e);
-    console.error(e);
-}
-    // if(result){
-    //     return result.d
-    // }
-    // else return null
+    if(result){
+        return result.d
+    }
+    else return null
 }
 
 async function getUserManagerId(userId){

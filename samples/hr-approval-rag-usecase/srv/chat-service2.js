@@ -10,13 +10,12 @@ const embeddingColumn  = 'EMBEDDING';
 const contentColumn = 'TEXT_CHUNK';
 
 const systemPrompt = 
-`Your task is to classify the user question into either of the two categories: invoice-request-query or generic-query\n
+`Your task is to classify the user question into either of the two categories: leave-request-query or generic-query\n
 
- If the user wants to know the invoice related details with company code, invoice number, posting date ,Customer return the response as json
- with the following format:
+ If the user wants to take or apply leave with a timeline or time information , return the response as json with the following format:
  {
-    "category" : "invoice-request-query"
-    "query: "InvoiceNo='AccountingDocument'&InvoiceType='FI'&FiscalYear='year of invoice posting date'&DateFrom='fromDate'&DateTo='toDate'&SalesOrder=''&CompanyCode='companyCode'"
+    "category" : "leave-request-query"
+    "dates" : "yyyy/mm/dd-yyyy/mm/dd"
  } 
 
  For all other queries, return the response as json as follows
@@ -26,93 +25,54 @@ const systemPrompt =
 
 Rules:
 
-1. If the user does not provide any invoice related information consider it as a generic category.
-2. If the category of the user question is "invoice-request-query", 
-a. if the user does not input exact dates and only mentions year, fill the dates as "[start date of the year]-[end date of the year]".
-b. if the user does not input exact dates and only mentions months, fill the dates as "[start date of the month]-[end date of the month]".
-c. if the user does not input exact dates and only mentions week, fill the dates as "[start date of the week]-[end date of the week]".
+1. If the user does not provide any time information consider it as a generic category.
+2. If the category of the user question is "leave-request-query", 
+a. if the user does not input exact dates and only mentions months, fill the dates as "[start date of the month]-[end date of the month]".
+b. if the user does not input exact dates and only mentions week, fill the dates as "[start date of the week]-[end date of the week]".
 
 EXAMPLES:
 
 EXAMPLE1: 
 
-user input: What kind of invoice details can provide ?
+user input: Can I take leave between January 1 to January 10 ?
+response:  {
+    "category" : "leave-request-query"
+    "dates" : "2024/01/01-2024/01/10"
+ } 
+
+EXAMPLE2: 
+
+user input: What is the maternity leave policy ?
 response:  {
     "category" : "generic-query"
  } 
 
- 
-EXAMPLE2: 
-
-user input: Can get invoices between January 1 to January 10 and company code 898?
-response:  {
-    "category" : "invoice-request-query"
-    "query: "InvoiceNo=''&InvoiceType='FI'&FiscalYear='2024'&DateFrom='01.01.2024'&DateTo='10.01.2024'&SalesOrder=''&CompanyCode='898'"
-}
-
 EXAMPLE3: 
 
-user input:  Can I get invoices posted in in March 2024for company code 801 ?
+user input:  Can I take leave in March ?
 response:  {
-    "category" : "invoice-request-query"
-    "query: "InvoiceNo=''&InvoiceType='FI'&FiscalYear='2024'&DateFrom='01.03.2024'&DateTo='31.03.2024'&SalesOrder=''&CompanyCode='801'"
+    "category" : "leave-request-query"
+    "dates" : "2024/03/01-2024/03/31"
  } 
 
 EXAMPLE4: 
 
-user input:  Can I get invoices posted or created this week ?
-
-If user provides company code as 803 then
+user input:  Can I take leave this week ?
 response:  {
-    "category" : "invoice-request-query"
-    "query: "InvoiceNo=''&InvoiceType='FI'&FiscalYear='2024'&DateFrom='17.04.2024'&DateTo='24.04.2024'&SalesOrder=''&CompanyCode='803'"
+    "category" : "leave-request-query"
+    "dates" : "2024/02/26-2024/03/01"
  } 
 
-Rules: \n 
-1. Ask follow up questions for company code  \n 
+EXAMPLE5: 
 
- EXAMPLE5: 
-
- user input:  Can I get invoices posted or created this year under 808 comapny code?
+ user input:  Can I take leave next week ?
  response:  {
-     "category" : "invoice-request-query"
-     "query: "InvoiceNo=''&InvoiceType='FI'&FiscalYear='2024'&DateFrom='01.01.2024'&DateTo='31.12.2024'&SalesOrder=''&CompanyCode='808'"
-    } 
+     "category" : "leave-request-query"
+     "dates" : "2024/03/04-2024/03/08"
+  } 
 
-Rules: \n 
-If the invoice search list {} or empty or undefined , then instruct the user to provide revised search criteria.\n
-
-    
- 
-EXAMPLE6: 
-
-user input:  Can I get invoices posted or created last year ?
-ask for follow up question on company code and feed user input company code in query.
-
-Rules: \n 
-1. Ask follow up questions for company code  \n 
-if the user proivdes 898 \n
-
-response:  {
-    "category" : "invoice-request-query"
-    "query: "InvoiceNo=''&InvoiceType='FI'&FiscalYear='2023'&DateFrom='01.01.2023'&DateTo='31.12.2023'&SalesOrder=''&CompanyCode='898'"
-} 
-
-EXAMPLE8: 
-
-user input:  Can I get invoice details for invoice 248013075?
-response:  {
-    "category" : "invoice-request-query"
-    "query: "InvoiceNo='0248013075'&InvoiceType='FI'&FiscalYear='2024'&DateFrom=''&DateTo=''&SalesOrder=''&CompanyCode='801'"
-} 
-Rules: \n 
-1. Ask follow up questions if you need additional \n
-2. make InvoiceNo as 10 digit example in this case 0248013075 \n
-3. in this invoiceNo , year will be 24 ( first two chars) which is 2024, company code wil be 801 (char 3 + char 4 +char 5) \n
- 
-
-EXAMPLE9:
-user input: Can get invoice search policy ?
+EXAMPLE6:
+user input: Can I take leave ?
 response: {
     "category" : "generic-query"
  } 
@@ -121,49 +81,27 @@ response: {
 
 const hrRequestPrompt = 
 `You are a chatbot. Answer the user question based on the following information
+1. HR policy, delimited by triple backticks. \n 
+2. If there are any team specific leave guidelines in the HR policy, consider the user as member of the following team and check the team members leave schedule in json format delimited by double backticks.
 
-1. Invoice search policy , delimited by triple backticks. \n 
-2. If there are any invoice specific invoice detetais guidelies in the Invoice Policy , Consider the invoice details and check the invoice search list .\n
+Team Member Leave Schedule\n
 
-Invoice search list details \n
-
-{ 
-"invoiceDetails" :
-                [{
-                "SAP__Origin": "SAP__Origin",
-                "CompanyCode": "CompanyCode",
-                "AccountingDocument": "AccountingDocument",
-                "FiscalYear": "yyyy",
-                "DocumentDate": "dd.mm.yyyy",
-                "PostingDate": "dd.mm.yyyy",
-                "FiscalPeriod": "mm",
-                "ReferenceDocument": "ReferenceDocument",
-                "DocumentStatus": "DocumentStatus",
-                "StatusText": "StatusText",
-                "DocuText": "DocuText",
-                "Currency": "Currency",
-                "Customer": "Customer",
-                "SalesOrder": "SalesOrder",
-                "Reference": "Reference"
-                }]
-} \n
+{ "name" : [[ leave_start_date - leave_end_date]] }\n
 
 Rules: \n 
 1. Ask follow up questions if you need additional information from user to answer the question.\n 
-2. If the invoice search list {} or empty or undefined , then instruct the user to provide optimized search criteria.\n
-3. Note that invoice and AccountDocument are alias names , always return response as invoice \n
-4. Be more formal in your response. \n
-5. Keep the answers concise. \n
-6. Alwasy return some response with proper instructions to user. \n
+2. If the team members leave schedule is {} or empty , then none of the team members are on leave.\n
+3. Be more formal in your response. \n
+4. Keep the answers concise. 
 `
 ;
 
 const genericRequestPrompt = 
 'You are a chatbot. Answer the user question based only on the context, delimited by triple backticks\n ';
-
+;
 
 const taskCategory = {
-    "invoice-request-query" : hrRequestPrompt,
+    "leave-request-query" : hrRequestPrompt,
     "generic-query" : genericRequestPrompt
 }
 
@@ -183,7 +121,6 @@ module.exports = function () {
 
     this.on('getChatRagResponse', async (req) => {
         try {
-            console.log("module.exports getChatRagResponse start Prasad"+req.data);
             //request input data
             const { conversationId, messageId, message_time, user_id, user_query } = req.data;
             const { Conversation, Message } = this.entities;
@@ -208,30 +145,26 @@ module.exports = function () {
             };
 
             const determinationResponse = await vectorplugin.getChatCompletion(payload)
-            console.log("STE-GPT-INFO determinationResponse "+determinationResponse);
             const determinationJson = JSON.parse(determinationResponse.content);
             const category = determinationJson?.category ;
-            
-            
-            console.log("STE-GPT-INFO determinationJson "+JSON.stringify(determinationJson));
 
             if (! taskCategory.hasOwnProperty(category)) {
                 throw new Error(`${category} is not in the supported`);
               }
             
-            if (category === "invoice-request-query")
+            if (category === "leave-request-query")
             {
-                
                 //Comment1 Start by Prasad April 17, 11:45PM
                 // const [startDateStr, endDateStr] = determinationJson?.dates?.split('-');
-                const filterQuery = determinationJson?.query ;
-                let dataInvoiceList = await sf_connection_util.
-                getUserInfoById(
-                    filterQuery
-                );
-                
+                // let data = await sf_connection_util.
+                // getPeersVacationTimeByUserId(
+                //     userId,
+                //     startDateStr.replace(/\//g, '-')+'T00:00:00', //2024-03-10T00:00:00
+                //     endDateStr.replace(/\//g, '-')+'T00:00:00', //2024-03-10T00:00:00
+                //     30
+                // )
                 // Comment1 End by Prasad April 17, 11:45PM
-                //const teamLeaveDates = {}
+                const teamLeaveDates = {}
                 //Comment2 Start by Prasad April 17, 11:45PM
                 // data.forEach(item => {
                 //     const formattedData = [];
@@ -243,9 +176,27 @@ module.exports = function () {
                 // });
                 // Comment2 End by Prasad April 17, 11:45PM
 
-                
+                //Addition1 Start by Prasad April 17, 11:45PM
+                // teamLeaveDates = {
+                //     "": [
+                //         {
+                //             "Prasad": [
+                //                 "2024-04-18",
+                //                 "2024-04-21"
+                //             ]
+                //         },
+                //         {
+                //             "Raghu": [
+                //                 "2024-04-25",
+                //                 "2024-04-30"
+                //             ]
+                //         }
+                //     ]
+                // };
 
-                const teamLeaveDataString = JSON.stringify(dataInvoiceList);
+                //Addition1 End by Prasad April 17, 11:45PM
+
+                const teamLeaveDataString = JSON.stringify(teamLeaveDates);
 
                 hrLeavePrompt = hrRequestPrompt + ` \`\`${teamLeaveDataString}\`\` \n`
             }
@@ -263,7 +214,7 @@ module.exports = function () {
             */
 
             const promptCategory  = {
-                "invoice-request-query" : hrLeavePrompt,
+                "leave-request-query" : hrLeavePrompt,
                 "generic-query" : genericRequestPrompt
             }
 
